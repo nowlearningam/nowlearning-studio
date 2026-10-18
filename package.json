@@ -1,0 +1,26 @@
+{
+  "name": "now-learning-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "mp4-muxer": "^5.0.0",
+    "vue": "^3.5.0",
+    "@fontsource/space-grotesk": "^5.2.0",
+    "@fontsource/noto-sans-tamil": "^5.2.0",
+    "@fontsource/noto-sans-devanagari": "^5.2.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.2.0",
+    "@vue/test-utils": "^2.5.1",
+    "happy-dom": "^21.0.3",
+    "vite": "^6.0.0",
+    "vitest": "^3.0.0"
+  }
+}
