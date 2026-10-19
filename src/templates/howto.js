@@ -1,5 +1,5 @@
 import { seg, easeOut, easeBack, text, watermark } from '../lib/draw.js'
-import { W, H, f, pal, lb, sec, themeField, langField, backdrop, chip, pill, circle, para, phone, tap, nowCard, progress } from '../lib/nl.js'
+import { W, H, f, pal, lb, sec, themeField, titleField, titleStyleField, bgField, langField, backdrop, chip, PHONE_S, pill, circle, para, phone, tap, nowCard } from '../lib/nl.js'
 
 // How To Use It (45-90 s): hook, problem, one scene per step with a screenshot, result, Now Learning Card.
 const step = (text, tapIt = false) => ({ image: '', text, tap: tapIt, hx: 0.5, hy: 0.5 })
@@ -26,6 +26,9 @@ export default {
   defaults: () => ({
     theme: 'Apps',
     lang: 'English',
+    title: '',
+    titleStyle: 'Pill',
+    bgStyle: 'Glow',
     app: 'Citymapper',
     hook: 'New city? Not sure which bus or train to take?',
     problem: 'You can’t tell which bus or train goes where.',
@@ -39,6 +42,7 @@ export default {
     musicVol: 0.7,
   }),
   fields: [
+    titleField(),
     { group: 'Content', key: 'app', label: 'Tool or app name', type: 'text' },
     { group: 'Content', key: 'hook', label: 'Hook (the first 3 seconds)', type: 'textarea' },
     { group: 'Content', key: 'problem', label: 'Problem (leave empty to skip)', type: 'textarea' },
@@ -56,6 +60,8 @@ export default {
     { group: 'Now Learning Card', key: 'useFor', label: 'Use it for', type: 'text' },
     { group: 'Now Learning Card', key: 'cost', label: 'Cost (Free / Paid / Free + paid)', type: 'text' },
     themeField(),
+    titleStyleField(),
+    bgField(),
     langField(),
     { group: 'Look', key: 'watermark', label: 'Show channel watermark', type: 'checkbox' },
     { group: 'Timing & sound', key: 'sHook', label: 'Hook (s)', type: 'number', min: 1, max: 30 },
@@ -79,17 +85,25 @@ export default {
     const lt = t - s.s
     const pop = easeBack(seg(lt, 0, 0.45))
     const a = easeOut(seg(lt, 0, 0.3))
-    backdrop(ctx, P)
+    backdrop(ctx, P, d.bgStyle, t)
     ctx.save()
     if (s.n === 'step') {
       const st = d.steps[s.i] || {}
-      circle(ctx, 130, 340, 46, P.accent)
-      text(ctx, String(s.i + 1), 130, 358, { font: f(700, 52), color: P.on })
-      text(ctx, `${l.step} ${s.i + 1}/${d.steps.length}`, 200, 354, { font: f(700, 40), color: P.ink, align: 'left' })
-      d.steps.forEach((_, k) => circle(ctx, 990 - (d.steps.length - 1 - k) * 34, 340, k === s.i ? 11 : 7, k <= s.i ? P.accent : P.mute + '66'))
-      const r = phone(ctx, P, A.img(st.image), 1 + 0.04 * seg(lt, 0, s.e - s.s))
+      const label = `${l.step} ${s.i + 1}/${d.steps.length}`
+      ctx.save()
+      ctx.font = f(700, 40)
+      const tw = ctx.measureText(label).width
+      ctx.restore()
+      const x0 = 540 - (80 + 24 + tw) / 2
+      chip(ctx, d, P)
+      circle(ctx, x0 + 40, 452, 40, P.accent)
+      text(ctx, String(s.i + 1), x0 + 40, 469, { font: f(700, 46), color: P.on })
+      text(ctx, label, x0 + 104, 466, { font: f(700, 40), color: P.ink, align: 'left' })
+      const n = d.steps.length
+      d.steps.forEach((_, k) => circle(ctx, 540 + (k - (n - 1) / 2) * 40, 1372, k === s.i ? 13 : 8, k <= s.i ? P.accent : P.mute + '66'))
+      const r = phone(ctx, P, A.img(st.image), 1 + 0.04 * seg(lt, 0, s.e - s.s), PHONE_S)
       if (st.tap) tap(ctx, r, st.hx, st.hy, lt)
-      para(ctx, st.text, 540, 1370, { px: 50, color: P.ink, maxW: 920, max: 3, alpha: a, rise: (1 - a) * 30 })
+      para(ctx, st.text, 540, 1448, { px: 50, color: P.ink, maxW: 920, max: 3, alpha: a, rise: (1 - a) * 30 })
     } else if (s.n === 'hook') {
       chip(ctx, d, P)
       ctx.globalAlpha = a
@@ -126,7 +140,6 @@ export default {
       nowCard(ctx, lt, d, P)
     }
     ctx.restore()
-    progress(ctx, P, t, total)
     if (d.watermark) watermark(ctx, W, H, { y: 1896, color: P.mute })
   },
 }

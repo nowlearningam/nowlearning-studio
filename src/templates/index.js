@@ -1,7 +1,8 @@
 import howto from './howto.js'
 import quick from './quick.js'
+import wish from './wish.js'
 
-export const TEMPLATES = [howto, quick]
+export const TEMPLATES = [howto, quick, wish]
 export const getTemplate = (key) => TEMPLATES.find((t) => t.key === key) || TEMPLATES[0]
 
 // Merges saved data over fresh defaults so fields added later still get a value.

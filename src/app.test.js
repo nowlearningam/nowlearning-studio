@@ -12,13 +12,13 @@ beforeAll(() => {
 })
 
 describe('App', () => {
-  it('mounts, switches between all four templates and shows their fields', async () => {
+  it('mounts, switches between all templates and shows their fields', async () => {
     const { default: App } = await import('./App.vue')
     const w = mount(App, { attachTo: document.body })
     await flushPromises()
     expect(w.text()).toContain('Now Learning')
     const tabs = w.findAll('.tpls button')
-    expect(tabs).toHaveLength(2)
+    expect(tabs).toHaveLength(3)
     const seen = []
     for (const tab of tabs) {
       await tab.trigger('click')
@@ -28,6 +28,7 @@ describe('App', () => {
     }
     expect(seen.join('|')).toContain('How To Use It')
     expect(seen.join('|')).toContain('Quick Discovery')
+    expect(seen.join('|')).toContain('Festival Wishes')
   })
 
   it('loads one of the 30 ideas into its template', async () => {
