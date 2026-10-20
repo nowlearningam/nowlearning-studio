@@ -7,6 +7,7 @@ export default {
   label: 'Quick Discovery',
   short: 'Quick',
   emoji: '\u26A1',
+  kind: 'short',
   size: [W, H],
   fps: 30,
   defaults: () => ({

@@ -1,8 +1,20 @@
 import howto from './howto.js'
 import quick from './quick.js'
 import wish from './wish.js'
+import roundup from './roundup.js'
+import howtolong from './howtolong.js'
+import quicklong from './quicklong.js'
 
-export const TEMPLATES = [howto, quick, wish]
+// Every Shorts template except Festival Wishes has a long-form counterpart, listed in the same
+// order so the two tabs read alike. Tool Roundup is the extra, many-tools-one-feature list.
+export const TEMPLATES = [howto, quick, wish, howtolong, quicklong, roundup]
+// The studio groups its templates by what they make: vertical Shorts, or a 16:9 long video.
+export const KINDS = [
+  { key: 'short', label: 'Shorts', hint: '1080\u00d71920 \u00b7 vertical' },
+  { key: 'long', label: 'Long video', hint: '1920\u00d71080 \u00b7 horizontal' },
+]
+export const kindOf = (tpl) => (tpl && tpl.kind === 'long' ? 'long' : 'short')
+export const templatesOfKind = (kind) => TEMPLATES.filter((t) => kindOf(t) === kind)
 export const getTemplate = (key) => TEMPLATES.find((t) => t.key === key) || TEMPLATES[0]
 
 // Merges saved data over fresh defaults so fields added later still get a value.

@@ -23,6 +23,17 @@ function fit() {
   scale.value = Math.max(0.05, Math.min((el.clientWidth - 24) / W, (el.clientHeight - 24) / H))
 }
 
+// Where the platform's own UI covers the frame. A template can override this with `safe`.
+// Vertical (Shorts/Reels/Stories): the top 250 px and bottom 420 px are covered by captions,
+// the handle and the action rail. Horizontal (YouTube long-form): a 16:9 title-safe inset, which
+// clears the title bar, the progress bar and end cards on every surface.
+function safeBox(tpl) {
+  const [W, H] = tpl.size
+  if (tpl.safe) return tpl.safe
+  if (W > H) return { x: 96, y: 60, w: W - 192, h: H - 120 }
+  return { x: 64, y: 250, w: W - 128, h: H - 250 - 420 }
+}
+
 function paint() {
   const c = cv.value
   if (!c) return
@@ -40,12 +51,13 @@ function paint() {
     console.error(e)
   }
   if (props.safe) {
+    const s = safeBox(props.tpl)
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.strokeStyle = 'rgba(255,0,60,.85)'
     ctx.lineWidth = 3
     ctx.setLineDash([16, 12])
-    ctx.strokeRect(64, 250, W - 128, H - 250 - 420)
+    ctx.strokeRect(s.x, s.y, s.w, s.h)
     ctx.restore()
   }
 }

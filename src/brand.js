@@ -6,6 +6,8 @@ export const BRAND = {
   watermark: 'Now Learning',
   storeKey: 'nowlearning-studio-v1',
   fileApp: 'nowlearning-studio',
+  // The IndexedDB store holding uploaded media. Renaming it orphans anything already uploaded.
+  assetDb: 'nowlearning-studio',
 }
 
 // Base palette. Each series has its own colour template in lib/nl.js (THEMES).

@@ -1,11 +1,12 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { BRAND, FONT_LOADS } from './brand.js'
-import { TEMPLATES, getTemplate, normalizeData, collectIds, audioPlan } from './templates/index.js'
+import { TEMPLATES, KINDS, getTemplate, kindOf, templatesOfKind, normalizeData, collectIds, audioPlan } from './templates/index.js'
 import { useClock, useMusicPreview } from './lib/useClock.js'
 import { hydrate, prune, exportAssets, importAssets } from './lib/assets.js'
 import { exportCaps, pickMethod, exportBlocker, renderVideo, recordVideo, renderStill, keepAwake } from './lib/exporter.js'
-import { download, fileSlug, shortsStatus } from './lib/files.js'
+import { download, fileSlug, sizeStatus } from './lib/files.js'
+import { saveFile, needsTapToSave } from './lib/save.js'
 import { IDEAS } from './lib/ideas.js'
 import StageCanvas from './components/StageCanvas.vue'
 import TransportBar from './components/TransportBar.vue'
@@ -14,7 +15,6 @@ import FieldEditor from './components/FieldEditor.vue'
 const logo = import.meta.env.BASE_URL + 'logo.svg'
 const caps = exportCaps()
 const canExport = caps.fast || caps.rec
-const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 const clone = (o) => JSON.parse(JSON.stringify(o))
 
 const project = reactive({ template: TEMPLATES[0].key, data: Object.fromEntries(TEMPLATES.map((t) => [t.key, t.defaults()])) })
@@ -39,7 +39,13 @@ try {
   /* ignore corrupt or unavailable storage */
 }
 
+// Each kind remembers which template you were last on, so switching back and forth is cheap.
+const lastOfKind = reactive(Object.fromEntries(KINDS.map((k) => [k.key, (templatesOfKind(k.key)[0] || TEMPLATES[0]).key])))
+lastOfKind[kindOf(getTemplate(project.template))] = project.template
+
 const tpl = computed(() => getTemplate(project.template))
+const kind = computed(() => kindOf(tpl.value))
+const kindTemplates = computed(() => templatesOfKind(kind.value))
 const data = computed(() => project.data[project.template])
 const total = computed(() => tpl.value.duration(data.value))
 const clock = useClock(() => total.value)
@@ -54,7 +60,7 @@ const groups = computed(() => {
   }
   return out
 })
-const status = computed(() => shortsStatus(total.value))
+const status = computed(() => sizeStatus(tpl.value, total.value))
 const wantsSound = computed(() => ui.sound && audioPlan(tpl.value, data.value, total.value).length > 0)
 const method = computed(() => pickMethod(caps, wantsSound.value, ui.method))
 const methodText = computed(() => {
@@ -89,10 +95,18 @@ const ideaGroups = ['Apps', 'AI', 'Tricks', 'Websites'].map((name) => ({ name, i
 function loadIdea(id) {
   const i = IDEAS.find((x) => x.id === +id)
   if (!i) return
-  const d = getTemplate(i.template).defaults()
+  const t = getTemplate(i.template)
+  const d = t.defaults()
   Object.assign(d, { theme: i.series, app: i.app, hook: i.hook, useFor: i.useFor, cost: i.cost })
+  // Blank the narrative fields the idea does not supply, so the previous template's example text
+  // (Citymapper's problem line and steps) cannot be filmed by mistake.
+  if ('problem' in d) d.problem = ''
+  if ('what' in d) d.what = ''
+  if ('result' in d) d.result = ''
+  if (Array.isArray(d.steps)) d.steps = d.steps.map((s) => ({ ...s, text: '' }))
   project.data[i.template] = d
   project.template = i.template
+  lastOfKind[kindOf(t)] = i.template
   clock.seekTime(0)
   notify(`Idea ${i.id} loaded. Add the steps and screenshots, then check the tool before filming.`)
 }
@@ -101,29 +115,33 @@ function setTemplate(key) {
   if (exporting.value || key === project.template) return
   clock.seekTime(0)
   project.template = key
+  lastOfKind[kindOf(getTemplate(key))] = key
   notify('')
+}
+
+function setKind(k) {
+  if (exporting.value || k === kind.value) return
+  setTemplate(lastOfKind[k] || (templatesOfKind(k)[0] || TEMPLATES[0]).key)
 }
 
 const cancelExport = () => {
   cancelled = true
 }
 
-// Phones block automatic downloads once the long render has finished, so the result is always offered with
-// buttons (Share / Save, Download). On computers it also downloads straight away.
+// Every finished file is offered with buttons. On a phone the share sheet is the only reliable way
+// into Photos or Files, and it needs a fresh tap, which a long render has long outlived — so the
+// file waits behind Share / Save instead of being pushed at the browser. Computers also get it
+// straight away as a download.
 function deliver(blob, name) {
   ready.value = { blob, name }
-  if (!isMobile) download(blob, name)
+  if (!needsTapToSave(blob, name)) download(blob, name)
 }
 async function shareReady() {
   const r = ready.value
   if (!r) return
-  const file = new File([r.blob], r.name, { type: r.blob.type })
-  try {
-    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: r.name })
-    else download(r.blob, r.name)
-  } catch (e) {
-    if (e.name !== 'AbortError') notify('Could not open the share sheet. Use Download instead.', true)
-  }
+  const how = await saveFile(r.blob, r.name)
+  if (how === 'shared') notify(`Sent ${r.name} to the share sheet. Choose Save Video, or Save to Files.`)
+  else if (how === 'downloaded') notify('Saved ' + r.name)
 }
 const downloadReady = () => ready.value && download(ready.value.blob, ready.value.name)
 
@@ -279,8 +297,14 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
         </div>
       </div>
 
+      <div class="kinds" role="tablist" aria-label="What to make">
+        <button v-for="k in KINDS" :key="k.key" role="tab" :aria-selected="k.key === kind" :class="{ on: k.key === kind }" @click="setKind(k.key)">
+          {{ k.label }}<span>{{ k.hint }}</span>
+        </button>
+      </div>
+
       <div class="tpls" role="tablist" aria-label="Video template">
-        <button v-for="t in TEMPLATES" :key="t.key" role="tab" :aria-selected="t.key === project.template" :class="{ on: t.key === project.template }" @click="setTemplate(t.key)">
+        <button v-for="t in kindTemplates" :key="t.key" role="tab" :aria-selected="t.key === project.template" :class="{ on: t.key === project.template }" @click="setTemplate(t.key)">
           <span class="em">{{ t.emoji }}</span>{{ t.short }}
         </button>
       </div>

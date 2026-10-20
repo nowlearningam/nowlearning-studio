@@ -8,6 +8,12 @@ import { getAsset, prepareVideos, provider } from './assets.js'
 //  - "record": real time. The canvas is played once into MediaRecorder together with the mixed sound. Slower
 //              (it takes as long as the video) but works on older iPhones, which have no audio encoder.
 // iPhone Safari, Chrome and Brave all run on Apple's WebKit engine, so they share the same capabilities.
+//
+// Sound comes from one of two places. By default it is the uploaded files in `audioPlan` (music, clip
+// sound), mixed in an OfflineAudioContext. A template may instead define
+// `soundtrack(data, seconds) -> AudioBuffer | null` and generate its own, which is how the quiz
+// templates produce their countdown ticks and answer chimes without shipping any audio files. Both
+// paths end up as one buffer, so the encoders below do not care which was used.
 const SAMPLE_RATE = 48000
 const TAIL = 0.5
 const VIDEO_CODECS = ['avc1.640032', 'avc1.640028', 'avc1.4d0028', 'avc1.42002a']
@@ -110,6 +116,25 @@ async function mixAudio(plan, seconds) {
   return used ? ctx.startRendering() : null
 }
 
+// The finished soundtrack for this video: either the template generates it, or the uploaded files
+// in the plan are mixed together. Returns null when there is nothing to play.
+async function soundFor(tpl, data, total, seconds) {
+  if (tpl.soundtrack) {
+    try {
+      return await tpl.soundtrack(data, seconds)
+    } catch {
+      return null // a template that cannot build its own sound still exports a silent video
+    }
+  }
+  return mixAudio(audioPlan(tpl, data, total), seconds)
+}
+
+// True when this video would have sound if the browser can encode it.
+export function hasSound(tpl, data, total) {
+  if (!tpl) return false
+  return tpl.soundtrack ? true : audioPlan(tpl, data, total).length > 0
+}
+
 async function encodeAudio(buffer, config, muxer) {
   let failure = null
   const enc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => (failure = e) })
@@ -166,7 +191,7 @@ export async function renderVideo({ tpl, data, sound, bitrate = 10_000_000, onPr
   let mixed = null
   if (audioCodec) {
     onProgress(0, 'Mixing sound')
-    mixed = await mixAudio(audioPlan(tpl, data, total), seconds)
+    mixed = await soundFor(tpl, data, total, seconds)
   }
   const audio = mixed ? audioCodec : null
 
@@ -215,12 +240,13 @@ export async function recordVideo({ tpl, data, sound, bitrate = 8_000_000, onPro
   const fps = tpl.fps
   const total = tpl.duration(data)
   const seconds = total + 0.3
-  const plan = sound ? audioPlan(tpl, data, total) : []
+  const plan = sound && !tpl.soundtrack ? audioPlan(tpl, data, total) : []
+  const generated = !!(sound && tpl.soundtrack)
 
   // The audio context must be created straight from the user's tap, before any await.
   let ac = null
   let dest = null
-  if (plan.length) {
+  if (plan.length || generated) {
     const AC = window.AudioContext || window.webkitAudioContext
     try {
       ac = AC ? new AC() : null
@@ -251,6 +277,22 @@ export async function recordVideo({ tpl, data, sound, bitrate = 8_000_000, onPro
         await ac.resume()
       } catch {
         /* handled below */
+      }
+      if (ac.state === 'running' && generated) {
+        // A generated soundtrack is one buffer: render it offline, then play it in one go.
+        try {
+          const buf = await tpl.soundtrack(data, seconds)
+          if (buf) {
+            starters.push((at) => {
+              const src = ac.createBufferSource()
+              src.buffer = buf
+              src.connect(dest)
+              src.start(at)
+            })
+          }
+        } catch {
+          /* no sound rather than no video */
+        }
       }
       if (ac.state === 'running') {
         for (const p of plan) {

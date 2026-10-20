@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { BRAND } from '../brand.js'
 
 // Uploaded photos, clips and music. Files live in IndexedDB (so a refresh keeps them) and in memory
 // as decoded bitmaps / media elements. Project data only ever stores the short asset id.
@@ -9,7 +10,7 @@ let dbp
 
 const db = () =>
   (dbp ||= new Promise((resolve, reject) => {
-    const r = indexedDB.open('cinephile-studio', 1)
+    const r = indexedDB.open(BRAND.assetDb, 1)
     r.onupgradeneeded = () => r.result.createObjectStore('assets')
     r.onsuccess = () => resolve(r.result)
     r.onerror = () => reject(r.error)

@@ -50,6 +50,7 @@ export default {
   label: 'Festival Wishes',
   short: 'Wishes',
   emoji: '\u{1F389}',
+  kind: 'short',
   size: [W, H],
   fps: 30,
   defaults: () => ({

@@ -21,6 +21,7 @@ export default {
   label: 'How To Use It',
   short: 'How To',
   emoji: '\u{1F4F1}',
+  kind: 'short',
   size: [W, H],
   fps: 30,
   defaults: () => ({
